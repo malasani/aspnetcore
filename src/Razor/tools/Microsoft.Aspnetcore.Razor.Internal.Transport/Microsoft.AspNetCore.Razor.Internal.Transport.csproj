@@ -3,13 +3,13 @@
   <PropertyGroup>
     <Description>Transport package for Mvc.Razor.Extensions pdbs. For internal use only.</Description>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <IsPackable>true</IsPackable>
     <IsShipping>false</IsShipping>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Don't bother passing the following assemblies to the (ignored) build or copying the files into our bin. -->
     <Reference Include="Microsoft.AspNetCore.Mvc.Razor.Extensions" ReferenceOutputAssembly="false" />
     <Reference Include="Microsoft.AspNetCore.Mvc.Razor.Extensions.Version1_X" ReferenceOutputAssembly="false" />
     <Reference Include="Microsoft.AspNetCore.Mvc.Razor.Extensions.Version2_X" ReferenceOutputAssembly="false" />

@@ -1,11 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <OutputType>Exe</OutputType>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <IsPackable>false</IsPackable>
     <ExcludeFromSourceBuild>true</ExcludeFromSourceBuild>
   </PropertyGroup>
 
@@ -17,6 +16,22 @@
 
   <ItemGroup>
     <Compile Include="$(SharedSourceRoot)BenchmarkRunner\*.cs" />
+
+    <Compile Include="$(SharedSourceRoot)RazorShared\TagHelperDescriptorJsonConverter.cs">
+      <Link>Shared\TagHelperDescriptorJsonConverter.cs</Link>
+    </Compile>
+    <Compile Include="$(SharedSourceRoot)RazorShared\RazorDiagnosticJsonConverter.cs">
+      <Link>Shared\RazorDiagnosticJsonConverter.cs</Link>
+    </Compile>
+    <Compile Include="$(SharedSourceRoot)RazorShared\JsonReaderExtensions.cs">
+      <Link>Shared\JsonReaderExtensions.cs</Link>
+    </Compile>
+    
+    <None Include="MSN.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(SharedSourceRoot)RazorShared\taghelpers.json" CopyToOutputDirectory="PreserveNewest">
+      <Link>taghelpers.json</Link>
+    </None>
+    <None Include="BlazorServerTagHelpers.razor" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

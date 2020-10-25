@@ -18,6 +18,8 @@ Copyright (c) .NET Foundation. All rights reserved.
     Default properties for common Razor SDK behavior.
   -->
   <PropertyGroup>
+    <UsingMicrosoftNETSdkRazor>true</UsingMicrosoftNETSdkRazor>
+
     <!--
     Set to true to automatically include certain file types, such as .cshtml files, as content in the project.
     When referenced via Microsoft.NET.Sdk.Web, this additionally includes all files under wwwroot, and any config files.
@@ -33,6 +35,11 @@ Copyright (c) .NET Foundation. All rights reserved.
       Set to true to automatically include Razor (.razor) files in @(RazorComponent) from @(Content).
     -->
     <EnableDefaultRazorComponentItems Condition="'$(EnableDefaultRazorComponentItems)'==''">true</EnableDefaultRazorComponentItems>
+
+    <!--
+      Set to true to automatically include Razor (.razor.cs) files in @(ScopedCssInput) from @(Content).
+    -->
+    <EnableDefaultScopedCssItems Condition="'$(EnableDefaultScopedCssItems)'==''">true</EnableDefaultScopedCssItems>
 
     <!--
       Set to true to copy RazorGenerate items (.cshtml) to the publish directory.
@@ -71,6 +78,11 @@ Copyright (c) .NET Foundation. All rights reserved.
     This property affects C# projects targeting 3.0 or later.
     -->
     <RazorUpToDateReloadFileTypes>.cs;.razor;.resx;.cshtml</RazorUpToDateReloadFileTypes>
+
+    <!--
+    Target used by dotnet-watch to resolve additional items.
+    -->
+    <CustomCollectWatchItems>$(CustomCollectWatchItems);_RazorSdkCustomCollectWatchItems</CustomCollectWatchItems>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(EnableDefaultItems)' == 'true' And '$(EnableDefaultContentItems)' == 'true'">

@@ -85,7 +85,14 @@ export class WebAssemblyResourceLoader {
     const cacheKey = toAbsoluteUri(`${url}.${contentHash}`);
     this.usedCacheKeys[cacheKey] = true;
 
-    const cachedResponse = await cache.match(cacheKey);
+    let cachedResponse: Response | undefined;
+    try {
+      cachedResponse = await cache.match(cacheKey);
+    } catch {
+      // Be tolerant to errors reading from the cache. This is a guard for https://bugs.chromium.org/p/chromium/issues/detail?id=968444 where
+      // chromium browsers may sometimes throw when working with the cache.
+    }
+
     if (cachedResponse) {
       // It's in the cache.
       const responseBytes = parseInt(cachedResponse.headers.get('content-length') || '0');
@@ -136,18 +143,31 @@ export class WebAssemblyResourceLoader {
 
     // Add to cache as a custom response object so we can track extra data such as responseBytes
     // We can't rely on the server sending content-length (ASP.NET Core doesn't by default)
-    await cache.put(cacheKey, new Response(responseData, {
+    const responseToCache = new Response(responseData, {
       headers: {
         'content-type': response.headers.get('content-type') || '',
         'content-length': (responseBytes || response.headers.get('content-length') || '').toString()
       }
-    }));
+    });
+
+    try {
+      await cache.put(cacheKey, responseToCache);
+    } catch {
+      // Be tolerant to errors writing to the cache. This is a guard for https://bugs.chromium.org/p/chromium/issues/detail?id=968444 where
+      // chromium browsers may sometimes throw when performing cache operations.
+    }
   }
 }
 
 async function getCacheToUseIfEnabled(bootConfig: BootJsonData): Promise<Cache | null> {
   // caches will be undefined if we're running on an insecure origin (secure means https or localhost)
   if (!bootConfig.cacheBootResources || typeof caches === 'undefined') {
+    return null;
+  }
+
+  // cache integrity is compromised if the first request has been served over http (except localhost)
+  // in this case, we want to disable caching and integrity validation
+  if (window.isSecureContext === false) {
     return null;
   }
 

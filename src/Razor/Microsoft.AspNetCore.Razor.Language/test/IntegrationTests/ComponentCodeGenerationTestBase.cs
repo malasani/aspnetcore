@@ -9,9 +9,13 @@ namespace Microsoft.AspNetCore.Razor.Language.IntegrationTests
 {
     public abstract class ComponentCodeGenerationTestBase : RazorBaselineIntegrationTestBase
     {
+        private RazorConfiguration _configuration;
+
         internal override string FileKind => FileKinds.Component;
 
         internal override bool UseTwoPhaseCompilation => true;
+
+        internal override RazorConfiguration Configuration => _configuration ?? base.Configuration;
 
         protected ComponentCodeGenerationTestBase()
             : base(generateBaselines: null)
@@ -357,6 +361,38 @@ namespace Test
   var myValue = ""Expression value"";
 }
 <div>@myValue <!-- @myValue --> </div>");
+
+            // Assert
+            AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+            AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+            CompileToAssembly(generated);
+        }
+
+        [Fact]
+        public void OmitsMinimizedAttributeValueParameter()
+        {
+            // Act
+            var generated = CompileToCSharp(@"
+<elem normal-attr=""@(""val"")"" minimized-attr empty-string-atttr=""""></elem>");
+
+            // Assert
+            AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+            AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+            CompileToAssembly(generated);
+        }
+
+        [Fact]
+        public void IncludesMinimizedAttributeValueParameterBeforeLanguageVersion5()
+        {
+            // Arrange
+            _configuration = RazorConfiguration.Create(
+                RazorLanguageVersion.Version_3_0,
+                base.Configuration.ConfigurationName,
+                base.Configuration.Extensions);
+
+            // Act
+            var generated = CompileToCSharp(@"
+<elem normal-attr=""@(""val"")"" minimized-attr empty-string-atttr=""""></elem>");
 
             // Assert
             AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
@@ -2079,6 +2115,69 @@ namespace AnotherTest
             AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
             AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
             CompileToAssembly(generated);
+        }
+
+        [Fact]
+        public void Component_WithPreserveWhitespaceDirective_True()
+        {
+            // Arrange / Act
+            var generated = CompileToCSharp(@"
+@preservewhitespace true
+
+<ul>
+    @foreach (var item in Enumerable.Range(1, 100))
+    {
+        <li>
+            @item
+        </li>
+    }
+</ul>
+
+");
+
+            // Assert
+            AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+            AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+            CompileToAssembly(generated);
+        }
+
+        [Fact]
+        public void Component_WithPreserveWhitespaceDirective_False()
+        {
+            // Arrange / Act
+            var generated = CompileToCSharp(@"
+@preservewhitespace false
+
+<ul>
+    @foreach (var item in Enumerable.Range(1, 100))
+    {
+        <li>
+            @item
+        </li>
+    }
+</ul>
+
+");
+
+            // Assert
+            AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+            AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+            CompileToAssembly(generated);
+        }
+
+        [Fact]
+        public void Component_WithPreserveWhitespaceDirective_Invalid()
+        {
+            // Arrange / Act
+            var generated = CompileToCSharp(@"
+@preservewhitespace someVariable
+@code {
+    bool someVariable = false;
+}
+", throwOnFailure: false);
+
+            // Assert
+            Assert.Collection(generated.Diagnostics, d => { Assert.Equal("RZ1038", d.Id); });
         }
 
         #endregion
@@ -4506,13 +4605,17 @@ namespace Test
 {
     public class SomeOtherComponent : ComponentBase
     {
+        [Parameter] public RenderFragment ChildContent { get; set; }
     }
 }
 "));
 
             // Act
             var generated = CompileToCSharp(@"
-<SomeOtherComponent />
+<SomeOtherComponent>
+    <h1>Child content at @DateTime.Now</h1>
+    <p>Very @(""good"")</p>
+</SomeOtherComponent>
 
 <h1>Hello</h1>");
 
@@ -4611,6 +4714,61 @@ namespace Test
 
             // Act
             var generated = CompileToCSharp(@"<div class=""first second"">Hello</div>");
+
+            // Assert
+            AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+            AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+            CompileToAssembly(generated);
+        }
+
+        [Fact]
+        public void WhiteSpace_InMarkupInFunctionsBlock()
+        {
+            // Arrange
+
+            // Act
+            var generated = CompileToCSharp(@"
+@using Microsoft.AspNetCore.Components.Rendering
+@code {
+    void MyMethod(RenderTreeBuilder __builder)
+    {
+        <ul>
+            @for (var i = 0; i < 100; i++)
+            {
+                <li>
+                    @i
+                </li>
+            }
+        </ul>
+    }
+}
+");
+
+            // Assert
+            AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+            AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+            CompileToAssembly(generated);
+        }
+
+        [Fact]
+        public void WhiteSpace_WithPreserveWhitespace()
+        {
+            // Arrange
+
+            // Act
+            var generated = CompileToCSharp(@"
+
+@preservewhitespace true
+
+    <elem attr=@Foo>
+        <child />
+    </elem>
+
+    @code {
+        int Foo = 18;
+    }
+
+");
 
             // Assert
             AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
@@ -4747,6 +4905,121 @@ namespace New.Test
 @namespace New.Test
 <Counter2 />
 ");
+
+            // Assert
+            AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+            AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+            CompileToAssembly(generated);
+        }
+
+        [Fact]
+        public void Component_PreserveWhitespaceDirective_InImports()
+        {
+            // Arrange
+            var importContent = @"
+@preservewhitespace true
+";
+            var importItem = CreateProjectItem("_Imports.razor", importContent, FileKinds.ComponentImport);
+            ImportItems.Add(importItem);
+
+            // Act
+            var generated = CompileToCSharp(@"
+
+<parent>
+    <child> @DateTime.Now </child>
+</parent>
+
+");
+
+            // Assert
+            AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+            AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+            CompileToAssembly(generated);
+        }
+
+        [Fact]
+        public void Component_PreserveWhitespaceDirective_OverrideImports()
+        {
+            // Arrange
+            var importContent = @"
+@preservewhitespace true
+";
+            var importItem = CreateProjectItem("_Imports.razor", importContent, FileKinds.ComponentImport);
+            ImportItems.Add(importItem);
+
+            // Act
+            var generated = CompileToCSharp(@"
+@preservewhitespace false
+
+<parent>
+    <child> @DateTime.Now </child>
+</parent>
+
+");
+
+            // Assert
+            AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+            AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+            CompileToAssembly(generated);
+        }
+
+        #endregion
+
+        #region "CSS scoping"
+        [Fact]
+        public void Component_WithCssScope()
+        {
+            // Arrange
+            AdditionalSyntaxTrees.Add(Parse(@"
+using Microsoft.AspNetCore.Components;
+
+namespace Test
+{
+    public class TemplatedComponent : ComponentBase
+    {
+        [Parameter]
+        public RenderFragment ChildContent { get; set; }
+    }
+}
+"));
+
+            // Act
+            // This test case attempts to use all syntaxes that might interact with auto-generated attributes
+            var generated = CompileToCSharp(@"
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Rendering
+<h1>Element with no attributes</h1>
+<parent with-attributes=""yes"" with-csharp-attribute-value=""@(123)"">
+    <child />
+    <child has multiple attributes=""some with values"">With text</child>
+    <TemplatedComponent @ref=""myComponentReference"">
+        <span id=""hello"">This is in child content</span>
+    </TemplatedComponent>
+</parent>
+@if (DateTime.Now.Year > 1950)
+{
+    <with-ref-capture some-attr @ref=""myElementReference"">Content</with-ref-capture>
+    <input id=""myElem"" @bind=""myVariable"" another-attr=""Another attr value"" />
+}
+
+@code {
+    ElementReference myElementReference;
+    TemplatedComponent myComponentReference;
+    string myVariable;
+
+    void MethodRenderingMarkup(RenderTreeBuilder __builder)
+    {
+        for (var i = 0; i < 10; i++)
+        {
+            <li data-index=@i>Something @i</li>
+        }
+
+        System.GC.KeepAlive(myElementReference);
+        System.GC.KeepAlive(myComponentReference);
+        System.GC.KeepAlive(myVariable);
+    }
+}
+", cssScope: "TestCssScope");
 
             // Assert
             AssertDocumentNodeMatchesBaseline(generated.CodeDocument);

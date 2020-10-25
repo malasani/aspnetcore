@@ -4,6 +4,7 @@
 using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -233,6 +234,7 @@ namespace Microsoft.AspNetCore.WebUtilities
             return ReadAsync(memory).AsTask();
         }
 
+        [SuppressMessage("ApiDesign", "RS0027:Public API with optional parameter(s) should have the most parameters amongst its public overloads.", Justification = "Required to maintain compatibility")]
         public override async ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
         {
             if (_disposed)
@@ -328,14 +330,14 @@ namespace Microsoft.AspNetCore.WebUtilities
             return charsRead;
         }
 
-        public override async Task<string> ReadLineAsync()
+        public override async Task<string?> ReadLineAsync()
         {
             if (_disposed)
             {
                 throw new ObjectDisposedException(nameof(HttpRequestStreamReader));
             }
 
-            StringBuilder sb = null;
+            StringBuilder? sb = null;
             var consumeLineFeed = false;
 
             while (true)
@@ -365,14 +367,14 @@ namespace Microsoft.AspNetCore.WebUtilities
         // immediately followed by a line feed. The resulting string does not
         // contain the terminating carriage return and/or line feed. The returned
         // value is null if the end of the input stream has been reached.
-        public override string ReadLine()
+        public override string? ReadLine()
         {
             if (_disposed)
             {
                 throw new ObjectDisposedException(nameof(HttpRequestStreamReader));
             }
 
-            StringBuilder sb = null;
+            StringBuilder? sb = null;
             var consumeLineFeed = false;
 
             while (true)
@@ -395,7 +397,7 @@ namespace Microsoft.AspNetCore.WebUtilities
             }
         }
 
-        private ReadLineStepResult ReadLineStep(ref StringBuilder sb, ref bool consumeLineFeed)
+        private ReadLineStepResult ReadLineStep(ref StringBuilder? sb, ref bool consumeLineFeed)
         {
             const char carriageReturn = '\r';
             const char lineFeed = '\n';
@@ -549,14 +551,14 @@ namespace Microsoft.AspNetCore.WebUtilities
 
             public static ReadLineStepResult FromResult(string value) => new ReadLineStepResult(true, value);
 
-            private ReadLineStepResult(bool completed, string result)
+            private ReadLineStepResult(bool completed, string? result)
             {
                 Completed = completed;
                 Result = result;
             }
 
             public bool Completed { get; }
-            public string Result { get; }
+            public string? Result { get; }
         }
     }
 }

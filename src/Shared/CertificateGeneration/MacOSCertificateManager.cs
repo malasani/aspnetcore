@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -54,7 +55,7 @@ namespace Microsoft.AspNetCore.Certificates.Generation
             var tmpFile = Path.GetTempFileName();
             try
             {
-                ExportCertificate(publicCertificate, tmpFile, includePrivateKey: false, password: null);
+                ExportCertificate(publicCertificate, tmpFile, includePrivateKey: false, password: null, CertificateKeyExportFormat.Pfx);
                 Log.MacOSTrustCommandStart($"{MacOSTrustCertificateCommandLine} {MacOSTrustCertificateCommandLineArguments}{tmpFile}");
                 using (var process = Process.Start(MacOSTrustCertificateCommandLine, MacOSTrustCertificateCommandLineArguments + tmpFile))
                 {
@@ -94,7 +95,7 @@ namespace Microsoft.AspNetCore.Certificates.Generation
             // Tries to use the certificate key to validate it can't access it
             try
             {
-                var rsa = candidate.GetRSAPrivateKey();
+                using var rsa = candidate.GetRSAPrivateKey();
                 if (rsa == null)
                 {
                     return new CheckCertificateStateResult(false, InvalidCertificateState);
@@ -144,7 +145,7 @@ namespace Microsoft.AspNetCore.Certificates.Generation
             var subject = subjectMatch.Groups[1].Value;
             using var checkTrustProcess = Process.Start(new ProcessStartInfo(
                 MacOSFindCertificateCommandLine,
-                string.Format(MacOSFindCertificateCommandLineArgumentsFormat, subject))
+                string.Format(CultureInfo.InvariantCulture, MacOSFindCertificateCommandLineArgumentsFormat, subject))
             {
                 RedirectStandardOutput = true
             });
@@ -194,6 +195,7 @@ namespace Microsoft.AspNetCore.Certificates.Generation
                 var processInfo = new ProcessStartInfo(
                     MacOSRemoveCertificateTrustCommandLine,
                     string.Format(
+                        CultureInfo.InvariantCulture,
                         MacOSRemoveCertificateTrustCommandLineArgumentsFormat,
                         certificatePath
                     ));
@@ -226,6 +228,7 @@ namespace Microsoft.AspNetCore.Certificates.Generation
             var processInfo = new ProcessStartInfo(
                 MacOSDeleteCertificateCommandLine,
                 string.Format(
+                    CultureInfo.InvariantCulture,
                     MacOSDeleteCertificateCommandLineArgumentsFormat,
                     certificate.Thumbprint.ToUpperInvariant(),
                     keyChain
@@ -269,6 +272,7 @@ namespace Microsoft.AspNetCore.Certificates.Generation
             var processInfo = new ProcessStartInfo(
                 MacOSAddCertificateToKeyChainCommandLine,
             string.Format(
+                CultureInfo.InvariantCulture,
                 MacOSAddCertificateToKeyChainCommandLineArgumentsFormat,
                 certificatePath,
                 password

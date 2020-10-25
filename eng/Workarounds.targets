@@ -20,9 +20,11 @@
     The web sdk adds an implicit framework reference. This removes it until we can update our build to use framework references.
   -->
   <ItemGroup>
-    <FrameworkReference Remove="Microsoft.AspNetCore.App" />
+    <FrameworkReference Remove="Microsoft.AspNetCore.App" Condition="'$(DoNotApplyWorkaroundsToMicrosoftAspNetCoreApp)' != 'true'" />
     <!-- Required because the Razor SDK will generate attributes -->
-    <Reference Include="Microsoft.AspNetCore.Mvc" Condition="'$(UsingMicrosoftNETSdkWeb)' == 'true' AND '$(TargetFrameworkIdentifier)' == '.NETCoreApp' AND '$(GenerateRazorAssemblyInfo)' == 'true'" />
+    <Reference Include="Microsoft.AspNetCore.Mvc" Condition="'$(UsingMicrosoftNETSdkWeb)' == 'true' AND
+      '$(TargetFrameworkIdentifier)' == '$(NETCoreAppFrameworkIdentifier)' AND
+      '$(GenerateRazorAssemblyInfo)' == 'true'" />
   </ItemGroup>
 
   <!-- Workaround https://github.com/dotnet/aspnetcore/issues/7503. This chains GenerateSourceLinkFile before razor component targets run. -->
@@ -40,20 +42,15 @@
     <PackageReference Include="Internal.AspNetCore.BuildTasks" PrivateAssets="All" Version="$(InternalAspNetCoreBuildTasksPackageVersion)" IsImplicitlyDefined="true" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <KnownAppHostPackOrFrameworkReferenceTfm>$(DefaultNetCoreTargetFramework)</KnownAppHostPackOrFrameworkReferenceTfm>
-    <KnownAppHostPackOrFrameworkReferenceTfm Condition="'$(KnownAppHostPackOrFrameworkReferenceTfm)' == 'net5.0'">netcoreapp5.0</KnownAppHostPackOrFrameworkReferenceTfm>
-  </PropertyGroup>
-
   <ItemGroup>
-    <!-- Workaround when there is no vNext SDK available, copy known apphost/framework reference info from 3.1 -->
+    <!-- Workaround when there is no vNext SDK available, copy known apphost/framework reference info from 5.0 -->
     <KnownAppHostPack
-      Include="@(KnownAppHostPack->WithMetadataValue('TargetFramework', 'netcoreapp3.1'))"
+      Include="@(KnownAppHostPack->WithMetadataValue('TargetFramework', 'netcoreapp5.0'))"
       TargetFramework="$(KnownAppHostPackOrFrameworkReferenceTfm)"
       Condition="@(KnownAppHostPack->Count()) != '0' AND !(@(KnownAppHostPack->AnyHaveMetadataValue('TargetFramework', '$(KnownAppHostPackOrFrameworkReferenceTfm)')))"
       />
     <KnownFrameworkReference
-      Include="@(KnownFrameworkReference->WithMetadataValue('TargetFramework', 'netcoreapp3.1'))"
+      Include="@(KnownFrameworkReference->WithMetadataValue('TargetFramework', 'netcoreapp5.0'))"
       TargetFramework="$(KnownAppHostPackOrFrameworkReferenceTfm)"
       Condition="@(KnownFrameworkReference->Count()) != '0' AND !(@(KnownFrameworkReference->AnyHaveMetadataValue('TargetFramework', '$(KnownAppHostPackOrFrameworkReferenceTfm)')))"
       />

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Security.Principal;
 using System.Text.Encodings.Web;
@@ -33,10 +34,7 @@ namespace Microsoft.AspNetCore.Authentication.Negotiate
         /// <summary>
         /// Creates a new <see cref="NegotiateHandler"/>
         /// </summary>
-        /// <param name="options"></param>
-        /// <param name="logger"></param>
-        /// <param name="encoder"></param>
-        /// <param name="clock"></param>
+        /// <inheritdoc />
         public NegotiateHandler(IOptionsMonitor<NegotiateOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock)
             : base(options, logger, encoder, clock)
         { }
@@ -62,7 +60,7 @@ namespace Microsoft.AspNetCore.Authentication.Negotiate
         /// <summary>
         /// Intercepts incomplete Negotiate authentication handshakes and continues or completes them.
         /// </summary>
-        /// <returns>True if a response was generated, false otherwise.</returns>
+        /// <returns><see langword="true" /> if a response was generated, otherwise <see langword="false"/>.</returns>
         public async Task<bool> HandleRequestAsync()
         {
             AuthPersistence persistence = null;
@@ -314,7 +312,7 @@ namespace Microsoft.AspNetCore.Authentication.Negotiate
             // things like ClaimsTransformation run per request.
             var identity = _negotiateState.GetIdentity();
             ClaimsPrincipal user;
-            if (identity is WindowsIdentity winIdentity)
+            if (OperatingSystem.IsWindows() && identity is WindowsIdentity winIdentity)
             {
                 user = new WindowsPrincipal(winIdentity);
                 Response.RegisterForDispose(winIdentity);
@@ -324,10 +322,37 @@ namespace Microsoft.AspNetCore.Authentication.Negotiate
                 user = new ClaimsPrincipal(new ClaimsIdentity(identity));
             }
 
-            var authenticatedContext = new AuthenticatedContext(Context, Scheme, Options)
+            AuthenticatedContext authenticatedContext;
+
+            if (Options.LdapSettings.EnableLdapClaimResolution)
             {
-                Principal = user
-            };
+                var ldapContext = new LdapContext(Context, Scheme, Options, Options.LdapSettings)
+                {
+                    Principal = user
+                };
+
+                await Events.RetrieveLdapClaims(ldapContext);
+
+                if (ldapContext.Result != null)
+                {
+                    return ldapContext.Result;
+                }
+
+                await LdapAdapter.RetrieveClaimsAsync(ldapContext.LdapSettings, ldapContext.Principal.Identity as ClaimsIdentity, Logger);
+
+                authenticatedContext = new AuthenticatedContext(Context, Scheme, Options)
+                {
+                    Principal = ldapContext.Principal
+                };
+            }
+            else
+            {
+                authenticatedContext = new AuthenticatedContext(Context, Scheme, Options)
+                {
+                    Principal = user
+                };
+            }
+
             await Events.Authenticated(authenticatedContext);
 
             if (authenticatedContext.Result != null)

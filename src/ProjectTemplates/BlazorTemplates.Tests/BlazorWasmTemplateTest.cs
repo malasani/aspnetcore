@@ -40,11 +40,13 @@ namespace Templates.Test
             return InitializeAsync(isolationContext: Guid.NewGuid().ToString());
         }
 
-        [Fact]
+        [Fact(Skip = "Certificate issue: https://github.com/dotnet/aspnetcore/issues/25826")]
         public async Task BlazorWasmStandaloneTemplate_Works()
         {
+            // Additional arguments are needed. See: https://github.com/dotnet/aspnetcore/issues/24278
+            Environment.SetEnvironmentVariable("EnableDefaultScopedCssItems", "true");
+
             var project = await ProjectFactory.GetOrCreateProject("blazorstandalone", Output);
-            project.TargetFramework = "netstandard2.1";
 
             var createResult = await project.RunDotNetNewAsync("blazorwasm");
             Assert.True(0 == createResult.ExitCode, ErrorMessages.GetFailedProcessMessage("create/restore", project, createResult));
@@ -81,6 +83,9 @@ namespace Templates.Test
         [QuarantinedTest("https://github.com/dotnet/aspnetcore/issues/20172")]
         public async Task BlazorWasmHostedTemplate_Works()
         {
+            // Additional arguments are needed. See: https://github.com/dotnet/aspnetcore/issues/24278
+            Environment.SetEnvironmentVariable("EnableDefaultScopedCssItems", "true");
+
             var project = await ProjectFactory.GetOrCreateProject("blazorhosted", Output);
 
             var createResult = await project.RunDotNetNewAsync("blazorwasm", args: new[] { "--hosted" });
@@ -132,10 +137,13 @@ namespace Templates.Test
         }
 
         [Fact]
+        [QuarantinedTest("https://github.com/dotnet/aspnetcore/issues/23992")]
         public async Task BlazorWasmStandalonePwaTemplate_Works()
         {
+            // Additional arguments are needed. See: https://github.com/dotnet/aspnetcore/issues/24278
+            Environment.SetEnvironmentVariable("EnableDefaultScopedCssItems", "true");
+
             var project = await ProjectFactory.GetOrCreateProject("blazorstandalonepwa", Output);
-            project.TargetFramework = "netstandard2.1";
 
             var createResult = await project.RunDotNetNewAsync("blazorwasm", args: new[] { "--pwa" });
             Assert.True(0 == createResult.ExitCode, ErrorMessages.GetFailedProcessMessage("create/restore", project, createResult));
@@ -170,9 +178,12 @@ namespace Templates.Test
             }
         }
 
-        [Fact]
+        [Fact(Skip = "Certificate issue: https://github.com/dotnet/aspnetcore/issues/25826")]
         public async Task BlazorWasmHostedPwaTemplate_Works()
         {
+            // Additional arguments are needed. See: https://github.com/dotnet/aspnetcore/issues/24278
+            Environment.SetEnvironmentVariable("EnableDefaultScopedCssItems", "true");
+
             var project = await ProjectFactory.GetOrCreateProject("blazorhostedpwa", Output);
 
             var createResult = await project.RunDotNetNewAsync("blazorwasm", args: new[] { "--hosted", "--pwa" });
@@ -251,6 +262,7 @@ namespace Templates.Test
         }
 
         [ConditionalFact]
+        [QuarantinedTest("https://github.com/dotnet/aspnetcore/issues/23992")]
         // LocalDB doesn't work on non Windows platforms
         [OSSkipCondition(OperatingSystems.Linux | OperatingSystems.MacOSX)]
         public Task BlazorWasmHostedTemplate_IndividualAuth_Works_WithLocalDB()
@@ -259,6 +271,7 @@ namespace Templates.Test
         }
 
         [Fact]
+        [QuarantinedTest("https://github.com/dotnet/aspnetcore/issues/23992")]
         public Task BlazorWasmHostedTemplate_IndividualAuth_Works_WithOutLocalDB()
         {
             return BlazorWasmHostedTemplate_IndividualAuth_Works(false);
@@ -266,6 +279,9 @@ namespace Templates.Test
 
         private async Task BlazorWasmHostedTemplate_IndividualAuth_Works(bool useLocalDb)
         {
+            // Additional arguments are needed. See: https://github.com/dotnet/aspnetcore/issues/24278
+            Environment.SetEnvironmentVariable("EnableDefaultScopedCssItems", "true");
+
             var project = await ProjectFactory.GetOrCreateProject("blazorhostedindividual" + (useLocalDb ? "uld" : ""), Output);
 
             var createResult = await project.RunDotNetNewAsync("blazorwasm", args: new[] { "--hosted", "-au", "Individual", useLocalDb ? "-uld" : "" });
@@ -330,10 +346,13 @@ namespace Templates.Test
         }
 
         [Fact]
+        [QuarantinedTest("https://github.com/dotnet/aspnetcore/issues/23639")]
         public async Task BlazorWasmStandaloneTemplate_IndividualAuth_Works()
         {
+            // Additional arguments are needed. See: https://github.com/dotnet/aspnetcore/issues/24278
+            Environment.SetEnvironmentVariable("EnableDefaultScopedCssItems", "true");
+
             var project = await ProjectFactory.GetOrCreateProject("blazorstandaloneindividual", Output);
-            project.TargetFramework = "netstandard2.1";
 
             var createResult = await project.RunDotNetNewAsync("blazorwasm", args: new[] {
                 "-au",
@@ -400,6 +419,27 @@ namespace Templates.Test
                 "--app-id-uri", "ApiUri",
                 "--api-client-id", "1234123413241324"),
             new TemplateInstance(
+                "blazorwasmhostedaadgraph", "-ho",
+                "-au", "SingleOrg",
+                "--calls-graph",
+                "--domain", "my-domain",
+                "--tenant-id", "tenantId",
+                "--client-id", "clientId",
+                "--default-scope", "full",
+                "--app-id-uri", "ApiUri",
+                "--api-client-id", "1234123413241324"),
+            new TemplateInstance(
+                "blazorwasmhostedaadapi", "-ho",
+                "-au", "SingleOrg",
+                "--called-api-url", "\"https://graph.microsoft.com\"",
+                "--called-api-scopes", "user.readwrite",
+                "--domain", "my-domain",
+                "--tenant-id", "tenantId",
+                "--client-id", "clientId",
+                "--default-scope", "full",
+                "--app-id-uri", "ApiUri",
+                "--api-client-id", "1234123413241324"),
+            new TemplateInstance(
                 "blazorwasmstandaloneaadb2c",
                 "-au", "IndividualB2C",
                 "--aad-b2c-instance", "example.b2clogin.com",
@@ -457,8 +497,6 @@ namespace Templates.Test
                 ErrorMessages.GetFailedProcessMessageOrEmpty("Run built project", project, aspNetProcess.Process));
 
             await aspNetProcess.AssertStatusCode("/", HttpStatusCode.OK, "text/html");
-            // We only do brotli precompression for published apps
-            await AssertCompressionFormat(aspNetProcess, "gzip");
             if (BrowserFixture.IsHostAutomationSupported())
             {
                 aspNetProcess.VisitInBrowser(Browser);
@@ -596,7 +634,6 @@ namespace Templates.Test
             var testAppSettings = appSettings.ToString();
             File.WriteAllText(Path.Combine(serverProject.TemplatePublishDir, "appsettings.json"), testAppSettings);
         }
-
 
         private (ProcessEx, string url) RunPublishedStandaloneBlazorProject(Project project)
         {

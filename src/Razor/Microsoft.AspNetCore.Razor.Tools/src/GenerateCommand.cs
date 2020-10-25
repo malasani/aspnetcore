@@ -1,17 +1,17 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Razor.Language;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Razor;
 using Microsoft.CodeAnalysis.Razor.Serialization;
 using Microsoft.Extensions.CommandLineUtils;
-using Microsoft.VisualStudio.LanguageServices.Razor.Serialization;
 using Newtonsoft.Json;
 
 namespace Microsoft.AspNetCore.Razor.Tools
@@ -25,6 +25,8 @@ namespace Microsoft.AspNetCore.Razor.Tools
             Outputs = Option("-o", "Generated output file path", CommandOptionType.MultipleValue);
             RelativePaths = Option("-r", "Relative path", CommandOptionType.MultipleValue);
             FileKinds = Option("-k", "File kind", CommandOptionType.MultipleValue);
+            CssScopeSources = Option("-cssscopedinput", ".razor file with scoped CSS", CommandOptionType.MultipleValue);
+            CssScopeValues = Option("-cssscopevalue", "CSS scope value for .razor file with scoped CSS", CommandOptionType.MultipleValue);
             ProjectDirectory = Option("-p", "project root directory", CommandOptionType.SingleValue);
             TagHelperManifest = Option("-t", "tag helper manifest file", CommandOptionType.SingleValue);
             Version = Option("-v|--version", "Razor language version", CommandOptionType.SingleValue);
@@ -43,6 +45,10 @@ namespace Microsoft.AspNetCore.Razor.Tools
         public CommandOption RelativePaths { get; }
 
         public CommandOption FileKinds { get; }
+
+        public CommandOption CssScopeSources { get; }
+
+        public CommandOption CssScopeValues { get; }
 
         public CommandOption ProjectDirectory { get; }
 
@@ -81,7 +87,9 @@ namespace Microsoft.AspNetCore.Razor.Tools
             var version = RazorLanguageVersion.Parse(Version.Value());
             var configuration = RazorConfiguration.Create(version, Configuration.Value(), extensions);
 
-            var sourceItems = GetSourceItems(ProjectDirectory.Value(), Sources.Values, Outputs.Values, RelativePaths.Values, FileKinds.Values);
+            var sourceItems = GetSourceItems(
+                Sources.Values, Outputs.Values, RelativePaths.Values,
+                FileKinds.Values, CssScopeSources.Values, CssScopeValues.Values);
 
             var result = ExecuteCore(
                 configuration: configuration,
@@ -117,6 +125,13 @@ namespace Microsoft.AspNetCore.Razor.Tools
                 // 2.x tasks do not specify FileKinds - in which case, no values will be present. If a kind for one file is specified, we expect as many kind entries
                 // as sources.
                 Error.WriteLine($"{Sources.Description} has {Sources.Values.Count}, but {FileKinds.Description} has {FileKinds.Values.Count} values.");
+                return false;
+            }
+
+            if (CssScopeSources.Values.Count != CssScopeValues.Values.Count)
+            {
+                // CssScopeSources and CssScopeValues arguments must appear as matched pairs
+                Error.WriteLine($"{CssScopeSources.Description} has {CssScopeSources.Values.Count}, but {CssScopeValues.Description} has {CssScopeValues.Values.Count} values.");
                 return false;
             }
 
@@ -185,6 +200,7 @@ namespace Microsoft.AspNetCore.Razor.Tools
                 if (GenerateDeclaration.HasValue())
                 {
                     b.Features.Add(new SetSuppressPrimaryMethodBodyOptionFeature());
+                    b.Features.Add(new SuppressChecksumOptionsFeature());
                 }
 
                 if (RootNamespace.HasValue())
@@ -211,6 +227,7 @@ namespace Microsoft.AspNetCore.Razor.Tools
             });
 
             var results = GenerateCode(engine, sourceItems);
+            var isGeneratingDeclaration = GenerateDeclaration.HasValue();
 
             foreach (var result in results)
             {
@@ -239,6 +256,18 @@ namespace Microsoft.AspNetCore.Razor.Tools
                 {
                     // Only output the file if we generated it without errors.
                     var outputFilePath = result.InputItem.OutputPath;
+                    var generatedCode = result.CSharpDocument.GeneratedCode;
+                    if (isGeneratingDeclaration)
+                    {
+                        // When emiting declarations, only write if it the contents are different.
+                        // This allows build incrementalism to kick in when the declaration remains unchanged between builds.
+                        if (File.Exists(outputFilePath) &&
+                            string.Equals(File.ReadAllText(outputFilePath), generatedCode, StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+                    }
+
                     File.WriteAllText(outputFilePath, result.CSharpDocument.GeneratedCode);
                 }
             }
@@ -256,7 +285,8 @@ namespace Microsoft.AspNetCore.Razor.Tools
                     filePath: item.FilePath,
                     relativePhysicalPath: item.RelativePhysicalPath,
                     fileKind: item.FileKind,
-                    file: new FileInfo(item.SourcePath));
+                    file: new FileInfo(item.SourcePath),
+                    cssScope: item.CssScope);
 
                 project.Add(projectItem);
             }
@@ -284,19 +314,28 @@ namespace Microsoft.AspNetCore.Razor.Tools
             }
         }
 
-        private SourceItem[] GetSourceItems(string projectDirectory, List<string> sources, List<string> outputs, List<string> relativePath, List<string> fileKinds)
+        private static SourceItem[] GetSourceItems(List<string> sources, List<string> outputs, List<string> relativePath, List<string> fileKinds, List<string> cssScopeSources, List<string> cssScopeValues)
         {
+            var cssScopeAssociations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var cssScopeSourceIndex = 0; cssScopeSourceIndex < cssScopeSources.Count; cssScopeSourceIndex++)
+            {
+                cssScopeAssociations.Add(cssScopeSources[cssScopeSourceIndex], cssScopeSourceIndex);
+            }
+
             var items = new SourceItem[sources.Count];
             for (var i = 0; i < items.Length; i++)
             {
-                var outputPath = Path.Combine(projectDirectory, outputs[i]);
                 var fileKind = fileKinds.Count > 0 ? fileKinds[i] : "mvc";
                 if (Language.FileKinds.IsComponent(fileKind))
                 {
                     fileKind = Language.FileKinds.GetComponentFileKindFromFilePath(sources[i]);
                 }
 
-                items[i] = new SourceItem(sources[i], outputs[i], relativePath[i], fileKind);
+                var cssScopeValue = cssScopeAssociations.TryGetValue(sources[i], out var cssScopeIndex)
+                    ? cssScopeValues[cssScopeIndex]
+                    : null;
+
+                items[i] = new SourceItem(sources[i], outputs[i], relativePath[i], fileKind, cssScopeValue);
             }
 
             return items;
@@ -334,7 +373,7 @@ namespace Microsoft.AspNetCore.Razor.Tools
 
         private readonly struct SourceItem
         {
-            public SourceItem(string sourcePath, string outputPath, string physicalRelativePath, string fileKind)
+            public SourceItem(string sourcePath, string outputPath, string physicalRelativePath, string fileKind, string cssScope)
             {
                 SourcePath = sourcePath;
                 OutputPath = outputPath;
@@ -343,6 +382,7 @@ namespace Microsoft.AspNetCore.Razor.Tools
                     .Replace(Path.DirectorySeparatorChar, '/')
                     .Replace("//", "/");
                 FileKind = fileKind;
+                CssScope = cssScope;
             }
 
             public string SourcePath { get; }
@@ -354,6 +394,8 @@ namespace Microsoft.AspNetCore.Razor.Tools
             public string FilePath { get; }
 
             public string FileKind { get; }
+
+            public string CssScope { get; }
         }
 
         private class StaticTagHelperFeature : ITagHelperFeature

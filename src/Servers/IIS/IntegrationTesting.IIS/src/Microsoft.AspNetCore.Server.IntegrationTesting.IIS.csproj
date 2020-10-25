@@ -4,7 +4,6 @@
     <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
     <PackageId>Microsoft.AspNetCore.Server.IntegrationTesting.IIS</PackageId>
     <Description>Provides support for integration testing using IIS based servers.</Description>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageTags>aspnetcore;iis</PackageTags>
     <DisableFastUpToDateCheck>True</DisableFastUpToDateCheck>
@@ -13,7 +12,6 @@
     <!-- This is used as a package by aspnet benchmarking infrastructure. It is meant for internal-use only. -->
     <IsPackable>true</IsPackable>
     <IsShippingPackage>false</IsShippingPackage>
-    <HasReferenceAssembly>false</HasReferenceAssembly>
     <!--
       The assembly 'contentFiles\any\any\x64\aspnetcorev2.dll' is intentionally
       not inside the 'lib' folder and hence it won't be added as a reference when
@@ -21,6 +19,8 @@
       about this structure
     -->
     <NoWarn>$(NoWarn);NU5100</NoWarn>
+    <!-- Ignore platform compatibility analyzer warnings for test and test infrastructure -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
 
   <Import Project="..\..\build\assets.props" />

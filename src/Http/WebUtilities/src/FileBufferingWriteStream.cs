@@ -4,9 +4,9 @@
 using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Pipelines;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Internal;
@@ -42,7 +42,7 @@ namespace Microsoft.AspNetCore.WebUtilities
         public FileBufferingWriteStream(
             int memoryThreshold = DefaultMemoryThreshold,
             long? bufferLimit = null,
-            Func<string> tempFileDirectoryAccessor = null)
+            Func<string>? tempFileDirectoryAccessor = null)
         {
             if (memoryThreshold < 0)
             {
@@ -82,7 +82,7 @@ namespace Microsoft.AspNetCore.WebUtilities
 
         internal PagedByteBuffer PagedByteBuffer { get; }
 
-        internal FileStream FileStream { get; private set; }
+        internal FileStream? FileStream { get; private set; }
 
         internal bool Disposed { get; private set; }
 
@@ -180,14 +180,33 @@ namespace Microsoft.AspNetCore.WebUtilities
         /// <param name="destination">The <see cref="Stream" /> to drain buffered contents to.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken" />.</param>
         /// <returns>A <see cref="Task" /> that represents the asynchronous drain operation.</returns>
+        [SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Required to maintain compatibility")]
         public async Task DrainBufferAsync(Stream destination, CancellationToken cancellationToken = default)
         {
             // When not null, FileStream always has "older" spooled content. The PagedByteBuffer always has "newer"
             // unspooled content. Copy the FileStream content first when available.
             if (FileStream != null)
             {
-                await FileStream.FlushAsync(cancellationToken);
+                // We make a new stream for async reads from disk and async writes to the destination
+                await using var readStream = new FileStream(FileStream.Name, FileMode.Open, FileAccess.Read, FileShare.Delete | FileShare.ReadWrite, bufferSize: 1, useAsync: true);
 
+                await readStream.CopyToAsync(destination, cancellationToken);
+
+                // This is created with delete on close
+                await FileStream.DisposeAsync();
+                FileStream = null;
+            }
+
+            await PagedByteBuffer.MoveToAsync(destination, cancellationToken);
+        }
+
+        [SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Required to maintain compatibility")]
+        public async Task DrainBufferAsync(PipeWriter destination, CancellationToken cancellationToken = default)
+        {
+            // When not null, FileStream always has "older" spooled content. The PagedByteBuffer always has "newer"
+            // unspooled content. Copy the FileStream content first when available.
+            if (FileStream != null)
+            {
                 // We make a new stream for async reads from disk and async writes to the destination
                 await using var readStream = new FileStream(FileStream.Name, FileMode.Open, FileAccess.Read, FileShare.Delete | FileShare.ReadWrite, bufferSize: 1, useAsync: true);
 
@@ -225,6 +244,7 @@ namespace Microsoft.AspNetCore.WebUtilities
             }
         }
 
+        [MemberNotNull(nameof(FileStream))]
         private void EnsureFileStream()
         {
             if (FileStream == null)

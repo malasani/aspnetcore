@@ -29,6 +29,7 @@ Copyright (c) .NET Foundation. All rights reserved.
     <!-- Used for tracking inputs to component generation -->
     <_RazorComponentInputHash></_RazorComponentInputHash>
     <_RazorComponentInputCacheFile>$(IntermediateOutputPath)$(MSBuildProjectName).RazorComponent.input.cache</_RazorComponentInputCacheFile>
+    <_RazorComponentDeclarationOutputCacheFile>$(IntermediateOutputPath)$(MSBuildProjectName).RazorComponent.output.cache</_RazorComponentDeclarationOutputCacheFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -85,7 +86,7 @@ Copyright (c) .NET Foundation. All rights reserved.
     Name="RazorGenerateComponentDeclaration"
     DependsOnTargets="$(RazorGenerateComponentDeclarationDependsOn)"
     Inputs="$(MSBuildAllProjects);@(RazorComponentWithTargetPath);$(_RazorComponentInputCacheFile)"
-    Outputs="@(_RazorComponentDeclaration)"
+    Outputs="$(_RazorComponentDeclarationOutputCacheFile)"
     Condition="'@(RazorComponentWithTargetPath->Count())'!='0'">
 
     <ItemGroup>
@@ -106,7 +107,9 @@ Copyright (c) .NET Foundation. All rights reserved.
     <RazorGenerate
       Debug="$(_RazorDebugGenerateCodeTask)"
       DebugTool="$(_RazorDebugGenerateCodeTool)"
-      ToolAssembly="$(_RazorToolAssembly)"
+      ToolExe="$(_RazorSdkDotNetHostFileName)"
+      ToolPath="$(_RazorSdkDotNetHostDirectory)"
+      ToolAssembly="$(_RazorSdkToolAssembly)"
       UseServer="$(UseRazorBuildServer)"
       ForceServer="$(_RazorForceBuildServer)"
       PipeName="$(_RazorBuildServerPipeName)"
@@ -120,8 +123,13 @@ Copyright (c) .NET Foundation. All rights reserved.
       TagHelperManifest="$(_RazorComponentDeclarationManifest)"
       GenerateDeclaration="true" />
 
+    <Touch
+      Files="$(_RazorComponentDeclarationOutputCacheFile)"
+      AlwaysCreate="true" />
+
     <ItemGroup>
       <FileWrites Include="@(_RazorComponentDeclaration)" />
+      <FileWrites Include="$(_RazorComponentDeclarationOutputCacheFile)" />
     </ItemGroup>
   </Target>
 
@@ -181,6 +189,7 @@ Copyright (c) .NET Foundation. All rights reserved.
          AddModules="@(AddModules)"
          AdditionalFiles="@(AdditionalFiles)"
          AllowUnsafeBlocks="$(AllowUnsafeBlocks)"
+         Analyzers="@(Analyzer)"
          ApplicationConfiguration="$(AppConfigForCompiler)"
          BaseAddress="$(BaseAddress)"
          CheckForOverflowUnderflow="$(CheckForOverflowUnderflow)"
@@ -225,6 +234,7 @@ Copyright (c) .NET Foundation. All rights reserved.
          ResponseFiles="$(CompilerResponseFile)"
          RuntimeMetadataVersion="$(RuntimeMetadataVersion)"
          SharedCompilationId="$(SharedCompilationId)"
+         SkipAnalyzers="true"
          SkipCompilerExecution="$(SkipCompilerExecution)"
          Sources="@(_RazorComponentDeclaration);@(Compile)"
          SubsystemVersion="$(SubsystemVersion)"
@@ -236,7 +246,7 @@ Copyright (c) .NET Foundation. All rights reserved.
          UseSharedCompilation="$(UseSharedCompilation)"
          Utf8Output="$(Utf8Output)"
          VsSessionGuid="$(VsSessionGuid)"
-         WarningLevel="$(WarningLevel)"
+         WarningLevel="0"
          WarningsAsErrors="$(WarningsAsErrors)"
          WarningsNotAsErrors="$(WarningsNotAsErrors)"
          PathMap="$(PathMap)"

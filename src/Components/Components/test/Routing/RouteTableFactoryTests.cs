@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.DependencyModel;
@@ -226,6 +227,23 @@ namespace Microsoft.AspNetCore.Components.Test.Routing
             Assert.Single(context.Parameters, p => p.Key == "parameter" && (string)p.Value == expectedValue);
         }
 
+        [Theory]
+        [InlineData("/blog/value1", "value1")]
+        [InlineData("/blog/value1/foo%20bar", "value1/foo bar")]
+        public void CanMatchCatchAllParameterTemplate(string path, string expectedValue)
+        {
+            // Arrange
+            var routeTable = new TestRouteTableBuilder().AddRoute("/blog/{*parameter}").Build();
+            var context = new RouteContext(path);
+
+            // Act
+            routeTable.Route(context);
+
+            // Assert
+            Assert.NotNull(context.Handler);
+            Assert.Single(context.Parameters, p => p.Key == "parameter" && (string)p.Value == expectedValue);
+        }
+
         [Fact]
         public void CanMatchTemplateWithMultipleParameters()
         {
@@ -237,6 +255,29 @@ namespace Microsoft.AspNetCore.Components.Test.Routing
             {
                 ["some"] = "an",
                 ["route"] = "path"
+            };
+
+            // Act
+            routeTable.Route(context);
+
+            // Assert
+            Assert.NotNull(context.Handler);
+            Assert.Equal(expectedParameters, context.Parameters);
+        }
+
+
+        [Fact]
+        public void CanMatchTemplateWithMultipleParametersAndCatchAllParameter()
+        {
+            // Arrange
+            var routeTable = new TestRouteTableBuilder().AddRoute("/{some}/awesome/{route}/with/{*catchAll}").Build();
+            var context = new RouteContext("/an/awesome/path/with/some/catch/all/stuff");
+
+            var expectedParameters = new Dictionary<string, object>
+            {
+                ["some"] = "an",
+                ["route"] = "path",
+                ["catchAll"] = "some/catch/all/stuff"
             };
 
             // Act
@@ -476,7 +517,7 @@ namespace Microsoft.AspNetCore.Components.Test.Routing
 
 
         [Fact]
-        public void PrefersLiteralTemplateOverParmeterizedTemplates()
+        public void PrefersLiteralTemplateOverParameterizedTemplates()
         {
             // Arrange
             var routeTable = new TestRouteTableBuilder()
@@ -590,7 +631,7 @@ namespace Microsoft.AspNetCore.Components.Test.Routing
             Assert.Equal(17, routeTable.Routes.Length);
             for (var i = 0; i < 17; i++)
             {
-                var templateText = "r" + i.ToString().PadLeft(2, '0');
+                var templateText = "r" + i.ToString(CultureInfo.InvariantCulture).PadLeft(2, '0');
                 Assert.Equal(templateText, routeTable.Routes[i].Template.TemplateText);
             }
         }
